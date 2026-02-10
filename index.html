@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en" class="dark">
 
@@ -1159,7 +1160,7 @@
 
                 // Smart Focus Settings
                 const smartFocusSettings = reactive({
-                    amount: 2,
+                    amount: 25,
                     unit: 'm'
                 });
 
@@ -1344,7 +1345,12 @@
                 };
 
                 const sendTestPush = () => {
-                    sendPushNotification("Test Notification", "System alerts are working correctly.");
+                    if (Notification.permission === "granted") {
+                        sendPushNotification("Test Notification", "System alerts are working correctly.");
+                        ElMessage.success("Notification sent! Check your system tray.");
+                    } else {
+                        ElMessage.warning("Please click 'Enable' first.");
+                    }
                 };
 
                 const toggleTheme = () => {
@@ -1961,4 +1967,4 @@
         app.mount('#app');
     </script>
 </body>
-                     </html>
+    </html>
