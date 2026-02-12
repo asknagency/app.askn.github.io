@@ -7,6 +7,7 @@
     <meta name="theme-color" content="#2563EB">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="description" content="Nuudesk Project Management Studio">
     
     <title>Nuudesk - Studio v1.5</title>
     
@@ -1088,7 +1089,7 @@
                                  </div>
                              </div>
                              <p class="text-[9px] text-[var(--el-text-color-secondary)] mt-1">
-                                Enables focus timer alerts and daily briefing (9:00 AM) if the app is open in background.
+                                Enables focus timer alerts and daily briefing (9:00 AM).
                              </p>
                         </div>
                     </div>
@@ -1298,8 +1299,19 @@
                     if ('serviceWorker' in navigator) {
                         try {
                             const reg = await navigator.serviceWorker.register('./sw.js');
-                            swRegistered.value = true;
                             console.log('SW Registered', reg);
+                            
+                            // Check for updates
+                            reg.addEventListener('updatefound', () => {
+                                const newWorker = reg.installing;
+                                newWorker.addEventListener('statechange', () => {
+                                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                        console.log('New content available');
+                                    }
+                                });
+                            });
+
+                            swRegistered.value = true;
                         } catch (error) {
                             console.error('SW Registration failed:', error);
                             swRegistered.value = false;
@@ -1310,19 +1322,37 @@
                 // Triggers a real "Web Push" style notification via Service Worker
                 const sendPushNotification = (title, body) => {
                     if (Notification.permission === "granted") {
-                        if (swRegistered.value) {
+                        if (swRegistered.value && 'serviceWorker' in navigator) {
                             navigator.serviceWorker.ready.then((registration) => {
-                                registration.showNotification(title, {
-                                    body: body,
-                                    icon: appSettings.appIcon || 'https://cdn.simpleicons.org/googleearth/2563EB',
-                                    vibrate: [200, 100, 200],
-                                    tag: 'nuudesk-alert'
-                                });
+                                // We send a message to the SW to trigger the notification from its context
+                                // This simulates a "push" event more accurately for testing
+                                if (registration.active) {
+                                    registration.active.postMessage({
+                                        type: 'SHOW_NOTIFICATION',
+                                        payload: {
+                                            title: title,
+                                            body: body,
+                                            icon: appSettings.appIcon || 'https://cdn.simpleicons.org/googleearth/2563EB'
+                                        }
+                                    });
+                                } else {
+                                     // Fallback if SW is not active yet
+                                     registration.showNotification(title, {
+                                        body: body,
+                                        icon: appSettings.appIcon || 'https://cdn.simpleicons.org/googleearth/2563EB'
+                                    });
+                                }
                             });
                         } else {
-                            // Fallback to standard API if SW fails
+                            // Fallback to standard API if SW fails or not present
                             new Notification(title, { body, icon: appSettings.appIcon });
                         }
+                    } else if (Notification.permission !== "denied") {
+                        Notification.requestPermission().then(permission => {
+                            if (permission === "granted") {
+                                sendPushNotification(title, body);
+                            }
+                        });
                     }
                 };
 
