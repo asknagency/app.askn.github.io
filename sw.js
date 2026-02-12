@@ -1,56 +1,46 @@
 const CACHE_NAME = 'nuudesk-v1.5';
-const ASSETS_TO_CACHE = [
-  './',
-  './index.html',
-  './manifest.json',
-  'https://cdn.jsdelivr.net/npm/uuid@8.3.2/dist/umd/uuidv4.min.js',
-  'https://cdn.tailwindcss.com',
-  'https://cdn.jsdelivr.net/npm/element-plus/dist/index.css',
-  'https://cdn.jsdelivr.net/npm/element-plus/theme-chalk/dark/css-vars.css',
-  'https://unpkg.com/vue@3/dist/vue.global.js',
-  'https://cdn.jsdelivr.net/npm/element-plus',
-  'https://unpkg.com/@element-plus/icons-vue',
-  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap'
-];
 
-// Install Event: Cache core assets
+// Install Event: Skip waiting to activate immediately
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
-  );
+    self.skipWaiting();
 });
 
-// Activate Event: Clean up old caches
+// Activate Event: Claim clients so we can control the page immediately
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+    event.waitUntil(clients.claim());
 });
 
-// Fetch Event: Network first, fall back to cache
-self.addEventListener('fetch', (event) => {
-  // Ignore GitHub API calls for caching (we want fresh data)
-  if (event.request.url.includes('api.github.com')) {
-    return;
-  }
-
-  event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
-    })
-  );
+// Helper to show notification from the SW context
+self.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
+        const { title, body, icon } = event.data.payload;
+        self.registration.showNotification(title, {
+            body: body,
+            icon: icon,
+            vibrate: [200, 100, 200],
+            tag: 'nuudesk-alert',
+            data: { dateOfArrival: Date.now() }
+        });
+    }
 });
 
-// Notification Click Event (Restoring your original feature)
+// Handle Notification Clicks
 self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  event.waitUntil(
-    clients.matchAll({ type: 'window' }).then((clientList) => {
-      for (const client of clientList) {
-        if (client.url && 'focus' in client) return client.focus();
-      }
-      if (clients.openWindow) return clients.openWindow('./index.html');
-    })
-  );
+    event.notification.close();
+
+    // Focus the open window if available, or open a new one
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+            if (clientList.length > 0) {
+                let client = clientList[0];
+                for (let i = 0; i < clientList.length; i++) {
+                    if (clientList[i].focused) {
+                        client = clientList[i];
+                    }
+                }
+                return client.focus();
+            }
+            return clients.openWindow('./index.html');
+        })
+    );
 });
